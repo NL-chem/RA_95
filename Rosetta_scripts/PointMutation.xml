@@ -1,0 +1,21 @@
+<ROSETTASCRIPTS>
+	
+	<RESIDUE_SELECTORS>
+		
+		<Index name="design_pos" resnums="133A"/>
+		
+	</RESIDUE_SELECTORS>
+
+
+	<MOVERS>
+		
+		<MutateResidue name="new_res" residue_selector="design_pos" new_res="ILE" />
+
+	</MOVERS>
+
+	<PROTOCOLS>
+		
+		<Add mover="new_res"/>
+		
+	</PROTOCOLS>
+</ROSETTASCRIPTS>
