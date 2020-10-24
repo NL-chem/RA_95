@@ -8,7 +8,7 @@ all_ligands=(PPK)
 iteration=800
 
 #maximal duration
-dur=23:59
+dur=3:59
 
 #flags file name
 flags=Relax.flags
