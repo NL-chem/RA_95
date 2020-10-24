@@ -2,22 +2,25 @@
 
 #################SETTINGS################
 #array with all ligand names
-all_ligands=(NIR)
+all_ligands=(PPK)
 
 #arrays with mutation positions and corresponding mutations
-all_mutations=(112I 112L 112V 133F 12G 12A 184V)
+all_mutations=(112I 112L 112V)
 
 #number of iterations per ligand
-iteration=1
+iteration=166
 
 #maximal duration
-dur=3:59
+dur=23:59
+
+#number of structures per run
+nstruct=6
 
 #flags file name
-flags=Design.flags
+flags=Design_semi.flags
 
 #pdb input file name; triplett code for ligands replaced by XXX
-pdb_name=RA_WT_XXX_relaxed.pdb
+pdb_name=RA_I133F_WT_XXX_relaxed_semi_harm20H.pdb
 #################SETTINGS################
 
 #to print bold
@@ -85,11 +88,11 @@ then
 				
 				#generating position and amino acid one letter code for the two mutation from the input vector
 				position=$(echo $mutation | sed 's/[A-Z]//g')
-				aa=$(echo $mutation | sed 's/[1-9]//g')
+				aa=$(echo $mutation | sed 's/[0-9]//g')
 		
 				#loop over specified number of iterations
 				for i in $(seq 1 $iteration); do
-					echo "bsub -n 1 -W $dur /cluster/apps/rosetta/3.11/x86_64/main/source/bin/rosetta_scripts.hdf5.linuxgccrelease @$flags -out:suffix _$i -out:path:all run/$ligand/$mutation -in:file:s pdb_inp/$pdb_input -extra_res_fa ligs/$params -enzdes:cstfile ligs/$cst -parser:script_vars aa=$aa -parser:script_vars position="$position"A -parser:script_vars ligand=$ligand"
+					bsub -n 1 -W $dur /cluster/apps/rosetta/3.11/x86_64/main/source/bin/rosetta_scripts.hdf5.linuxgccrelease @$flags -nstruct $nstruct -out:suffix _$i -out:path:all run/$ligand/$mutation -in:file:s pdb_inp/$pdb_input -extra_res_fa ligs/$params -enzdes:cstfile ligs/$cst -parser:script_vars aa=$aa -parser:script_vars position="$position"A -parser:script_vars ligand=$ligand
 					counter+=1
 				done
 			done
