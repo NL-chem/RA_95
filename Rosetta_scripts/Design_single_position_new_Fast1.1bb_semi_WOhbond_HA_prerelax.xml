@@ -1,0 +1,214 @@
+<ROSETTASCRIPTS>
+
+	<SCOREFXNS>	
+		#choosing score function and turn on score terms for enzdes-style constraints
+		<ScoreFunction name="ref2015" weights="ref2015">
+			<Reweight scoretype="atom_pair_constraint" weight="1.0" />
+			<Reweight scoretype="angle_constraint" weight="1.0" />
+			<Reweight scoretype="dihedral_constraint" weight="1.0"/>
+		</ScoreFunction>
+		
+		#score function for prerelaxing of the ligand without fa_rep
+		<ScoreFunction name="ref2015_nofarep" weights="ref2015"> 
+			<Reweight scoretype="atom_pair_constraint" weight="1.0" />
+			<Reweight scoretype="angle_constraint" weight="1.0" />
+			<Reweight scoretype="dihedral_constraint" weight="1.0"/>
+			<Reweight scoretype="fa_rep" weight="0.0" />
+		</ScoreFunction>
+	</SCOREFXNS>
+	
+	<SCORINGGRIDS ligand_chain="X" width="30">
+		<ClassicGrid grid_name="Classic" weight="1.0"/>
+	</SCORINGGRIDS>
+	
+	<RESIDUE_SELECTORS>
+		#select all glycines and prolines as they should not be repacked
+		<ResidueName name="GP" residue_name3="GLY,PRO"/>
+		#select all residues that should be repacked
+		<Not name="not_GP" selector="GP"/>
+		
+		#select design position which is read from the command line (-parser:script_vars position=???)
+		<Index name="design_pos" resnums="%%position%%"/>
+		
+		# Catalytic apparatus, h-bond network
+		<Index name="tyr51" resnums="51A"/>
+		<Index name="lys83" resnums="83A"/>
+		<Index name="asn110" resnums="110A"/>
+		<Index name="tyr180" resnums="180A"/>
+		<ResidueName name="lig" residue_name3="%%ligand%%"/>
+		<Or name="catalysis" selectors="tyr51,lys83,asn110,tyr180,lig"/>
+		
+		#select all residues except the catalytic aparatus and the design position
+		<Or name="catalysis_or_design" selectors="catalysis,design_pos"/>
+		<Not name="not_catalysis_or_design" selector="catalysis_or_design"/>
+	</RESIDUE_SELECTORS>
+
+	<TASKOPERATIONS>
+		###########TASKOPS FOR FASTRELAX############
+		#prevent repacking of glycines and prolines
+		<OperateOnResidueSubset name="fixed_GP" selector="GP" >
+			<PreventRepackingRLT/>
+		</OperateOnResidueSubset>
+		
+		#restrict positions except GP to repacking
+		<OperateOnResidueSubset name="repack_excp_GP" selector="not_GP">
+			<RestrictToRepackingRLT/>
+		</OperateOnResidueSubset>
+		############################################
+		
+		###TASKOPS FOR REPACKING LIGAND WO FA_REP###
+		#select design side and aas which should be used which are read form the command line (-parser:script_vars aa=?)
+		<OperateOnResidueSubset name="design" selector="design_pos">
+			<RestrictAbsentCanonicalAASRLT aas="%%aa%%"/>
+		</OperateOnResidueSubset>
+		
+		#restrict catalytic residues and ligand to repacking
+		<OperateOnResidueSubset name="repack_catalysis" selector="catalysis">
+			<RestrictToRepackingRLT/>
+  		</OperateOnResidueSubset>
+  		
+  		#prevent everything except the catalytic residues and the design position form repacking
+  		<OperateOnResidueSubset name="fix_scaffold_catalysis" selector="not_catalysis_or_design">
+			<PreventRepackingRLT/>
+  		</OperateOnResidueSubset>
+  		############################################
+		
+		##############STANDARD TASKOPS##############
+		#Default task oparations recommanded form the Baker lab for design
+		<IncludeCurrent name="current"/>
+		<LimitAromaChi2 name="aroTrp" chi2min="45" chi2max="110" include_trp="true" />
+		<LimitAromaChi2 name="aroChi" chi2min="70" chi2max="110" />
+		<InitializeFromCommandline name="commandline"/>
+		<ExtraRotamersGeneric name="extra_rot"
+				ex1="1" ex2="1" ex3="0" ex4="0"
+				ex1aro="1" ex2aro="0" ex1aro_exposed="0" ex2aro_exposed="0"
+				ex1_sample_level="1" ex2_sample_level="1"
+				ex1aro_sample_level="1" ex2aro_sample_level="1"
+				extrachi_cutoff="1" />
+		############################################
+	</TASKOPERATIONS>
+
+	<FILTERS>
+		#to get the per residue scores for the specified residues and the binding pocket
+		<EnergyPerResidue name="interface_en" scorefxn="ref2015" score_type="total_score" whole_interface="1" confidence="0.0"/>
+		<EnzScore name="ligand_en"  scorefxn="ref2015" whole_pose="0" score_type="total_score" pdb_num="1X" confidence="0.0"/>
+		<EnzScore name="ligand_cst_en"  scorefxn="ref2015" whole_pose="0" score_type="cstE" pdb_num="1X" confidence="0.0"/>
+		<EnergyPerResidue name="tyr51_en" scorefxn="ref2015" score_type="total_score" pdb_num="51A" confidence="0.0"/>
+		<EnergyPerResidue name="lys83_en" scorefxn="ref2015" score_type="total_score" pdb_num="83A" confidence="0.0"/>
+		<EnergyPerResidue name="asn110_en" scorefxn="ref2015" score_type="total_score" pdb_num="110A" confidence="0.0"/>
+		<EnergyPerResidue name="tyr180_en" scorefxn="ref2015" score_type="total_score" pdb_num="180A" confidence="0.0"/>
+	</FILTERS>
+
+	<MOVERS>
+		############CONSTRAINTS MOVERS##############
+		# adding enzdes-style constraints describing the lysine-ligand covalent attachment
+		<AddOrRemoveMatchCsts name="add_cst" cst_instruction="add_new" keep_covalent="true" />
+		
+		# adds bb constrains
+		<ConstraintSetMover name="add_bb_csts" add_constraints="true" cst_file="%%cstfile%%"/>
+				
+		# Catalytic hydrogen bond network
+		<AddConstraints name="add_hbond_csts">
+			
+			 <HydrogenBondConstraintGenerator name="hbond_asn_tyr"
+				residue_selector1="asn110"
+				residue_selector2="tyr180"
+				atoms1="ND2"
+				atoms2="OH"
+				atom_pair_func="FLAT_HARMONIC 1.4 0.5 0.4"/>
+				
+			<HydrogenBondConstraintGenerator name="hbond_asn_lys"
+				residue_selector1="asn110"
+				residue_selector2="lys83"
+				atoms1="OD1"
+				atoms2="NZ"
+				atom_pair_func="FLAT_HARMONIC 1.4 0.5 0.4"
+				atom_definitions="LYX,NZ,CE,CD,1.4,109.5"/>
+				
+			<HydrogenBondConstraintGenerator name="hbond_hemiaminal_tyr180"
+				residue_selector1="tyr180"
+				residue_selector2="lig"
+				atoms1="OH"
+				atoms2="OL1"
+				atom_pair_func="FLAT_HARMONIC 1.4 0.5 0.4"
+				atom_definitions="%%ligand%%,OL1,CL,CL2,1.4,109.5"/>
+				
+			<HydrogenBondConstraintGenerator name="hbond_hemiaminal_tyr51"
+				residue_selector1="lig"
+				residue_selector2="tyr180"
+				atoms1="OL1"
+				atoms2="OH"
+				atom_pair_func="FLAT_HARMONIC 1.4 0.5 0.4"
+				atom_definitions="%%ligand%%,OL1,CL,CL2,1.4,109.5"/>	
+				
+			<HydrogenBondConstraintGenerator name="hbond_3hydroxy_tyr51"
+				residue_selector1="lig"
+				residue_selector2="tyr51"
+				atoms1="OL2"
+				atoms2="OH"
+				atom_pair_func="FLAT_HARMONIC 1.4 0.5 0.4"
+				atom_definitions="%%ligand%%,OL2,CL3,CL1,1.4,109.5"/>
+
+		</AddConstraints>
+		
+		<ClearConstraintsMover name="clear_csts"/>
+		
+		############################################
+		
+		##########RELAX AND DESIGN MOVERS###########
+		
+		# Perform an initial, random pertubation of the ligand to sample outside of local energy minima
+		<Transform 	name="perturb_lig" chain="X" box_size="30.0"
+				move_distance="0.5" angle="10.0" cycles="100"
+				repeats="1" temperature="5" initial_perturb="5.0"
+				initial_angle_perturb="30.0"/>
+		
+		<PackRotamersMover name="repack_catalysis" scorefxn="ref2015_nofarep" task_operations="repack_catalysis,fix_scaffold_catalysis,design"/>
+
+		<TaskAwareMinMover name="minimise_catalysis" scorefxn="ref2015_nofarep" chi="1" bb="0" jump="1"
+				cartesian="FALSE" bondlength="FALSE" type="lbfgs_armijo_nonmonotone"
+				tolerance="0.0001" max_iter="2000"
+				task_operations="repack_catalysis,fix_scaffold_catalysis,design"/>
+		
+		<ParsedProtocol name="HBNetOpt" >
+			<Add mover_name="repack_catalysis"/>
+			<Add mover_name="minimise_catalysis"/>
+		</ParsedProtocol>
+		
+		<GenericMonteCarlo name="MC_HBNetOpt" mover_name="HBNetOpt" trials="100" scorefxn_name="ref2015_nofarep"
+				temperature="5.0" sample_type="low" recover_low="1" preapply="0" drift="1" />
+		
+		<FastRelax name="FastRelax" scorefxn="ref2015"
+				ramp_down_constraints="false"
+				task_operations="fixed_GP,repack_excp_GP,current,aroChi,aroTrp,commandline,extra_rot">
+				<MoveMap>
+					<Chain number="1" chi ="1" bb="1"/>
+					<Jump number="1" setting="1"/>
+				</MoveMap>
+		</FastRelax>
+		############################################
+	</MOVERS>
+
+	<PROTOCOLS>
+		<Add mover="perturb_lig"/>			
+		<Add mover="add_cst"/>				
+		<Add mover="add_hbond_csts"/>		
+		<Add mover="MC_HBNetOpt"/>			
+		<Add mover="clear_csts"/>			
+		<Add mover="add_cst"/>				
+		<Add mover="add_bb_csts"/>			
+		<Add mover="FastRelax"/> 			
+		<Add mover="add_hbond_csts"/>		
+		
+		<Add filter="interface_en" />
+		<Add filter="ligand_en" />
+		<Add filter="ligand_cst_en" />
+		<Add filter="tyr51_en" />
+		<Add filter="lys83_en" />
+		<Add filter="asn110_en" />
+		<Add filter="tyr180_en" />
+	</PROTOCOLS>
+	
+	<OUTPUT scorefxn="ref2015"/>
+	
+</ROSETTASCRIPTS>
